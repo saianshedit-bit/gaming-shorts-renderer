@@ -2,6 +2,21 @@ name: Render Gaming Short
 
 on:
   workflow_dispatch:
+    inputs:
+      audio_url:
+        description: "Public URL of narration MP3"
+        required: true
+        type: string
+
+      title:
+        description: "Video title"
+        required: true
+        type: string
+
+      script:
+        description: "Video script"
+        required: true
+        type: string
 
 jobs:
   render:
@@ -13,18 +28,50 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Create test video
+      - name: Download narration
+        env:
+          AUDIO_URL: ${{ inputs.audio_url }}
+        run: |
+          curl -L --fail --retry 3 "$AUDIO_URL" -o narration.mp3
+
+      - name: Prepare text
+        env:
+          TITLE: ${{ inputs.title }}
+          SCRIPT: ${{ inputs.script }}
+        run: |
+          printf '%s' "$TITLE" > title.txt
+
+          python3 - <<'PY'
+          import os
+          import textwrap
+
+          script = os.environ["SCRIPT"]
+
+          with open("script.txt", "w") as f:
+              f.write("\n".join(textwrap.wrap(script, 28)))
+          PY
+
+      - name: Render video
         run: |
           ffmpeg -y \
             -f lavfi \
-            -i "color=c=black:s=1080x1920:r=30" \
-            -t 5 \
-            -vf "drawtext=text='GAMING SHORTS':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2" \
+            -i "color=c=0x0b1020:s=1080x1920:r=30" \
+            -i narration.mp3 \
+            -filter_complex "\
+            [0:v]drawbox=x=0:y=0:w=1080:h=1920:color=0x7c3aed@0.25:t=fill,\
+            drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile=title.txt:fontcolor=white:fontsize=82:x=(w-text_w)/2:y=260,\
+            drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:textfile=script.txt:fontcolor=white:fontsize=42:line_spacing=18:box=1:boxcolor=black@0.55:boxborderw=30:x=70:y=650[v]" \
+            -map "[v]" \
+            -map 1:a:0 \
             -c:v libx264 \
+            -preset veryfast \
             -pix_fmt yuv420p \
+            -c:a aac \
+            -b:a 128k \
+            -shortest \
             gaming-short.mp4
 
-      - name: Upload video
+      - name: Upload finished video
         uses: actions/upload-artifact@v4
         with:
           name: gaming-short
