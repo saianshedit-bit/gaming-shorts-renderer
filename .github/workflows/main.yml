@@ -1,0 +1,31 @@
+name: Render Gaming Short
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Create test video
+        run: |
+          ffmpeg -y \
+            -f lavfi \
+            -i "color=c=black:s=1080x1920:r=30" \
+            -t 5 \
+            -vf "drawtext=text='GAMING SHORTS':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2" \
+            -c:v libx264 \
+            -pix_fmt yuv420p \
+            gaming-short.mp4
+
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: gaming-short
+          path: gaming-short.mp4
